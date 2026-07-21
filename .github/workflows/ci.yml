@@ -1,0 +1,20 @@
+name: CI/CD Pipeline
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+  release:
+    types: [created]
+
+jobs:
+  call-shared-workflow:
+    # Syntax: org-or-username/central-repo-name/.github/workflows/file.yml@branch-or-tag
+    uses: YOUR_GITHUB_ORG/.github/.github/workflows/reusable-maven-docker.yml@main
+    with:
+      java-version: '21'
+      # Optional: defaults to the repository name if omitted
+      image-name: 'inventory-service' 
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
