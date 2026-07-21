@@ -6,6 +6,12 @@ on:
       java-version:
         type: string
         default: '21'
+      needs-mysql:
+        type: boolean
+        default: false
+      needs-redis:
+        type: boolean
+        default: false
 
 jobs:
   build-and-publish:
@@ -13,35 +19,45 @@ jobs:
     permissions:
       contents: read
       packages: write   # Required to upload JARs to GitHub Packages
-    steps:
-      - uses: actions/checkout@v4
 
+    # Services defined at the JOB level (not inside steps)
     services:
       mysql:
-        image: ${{ inputs.needs-mysql && 'mysql:8.0' || '' }}
+        image: mysql:8.0
         env:
           MYSQL_ROOT_PASSWORD: root
           MYSQL_DATABASE: testdb
         ports:
           - 3306:3306
-        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
 
-      # Redis Service Container
       redis:
-        image: ${{ inputs.needs-redis && 'redis:alpine' || '' }}
+        image: redis:alpine
         ports:
           - 6379:6379
-        options: --health-cmd="redis-cli ping" --health-interval=10s --health-timeout=5s --health-retries=3
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
 
       - name: Set up JDK ${{ inputs.java-version }}
         uses: actions/setup-java@v4
         with:
           java-version: ${{ inputs.java-version }}
           distribution: 'temurin'
-          server-id: github # Automatically adds credentials to ~/.m2/settings.xml
+          server-id: github # Injects GitHub credentials into ~/.m2/settings.xml
           cache: 'maven'
 
-      - name: Build and Publish
+      - name: Build and Publish to GitHub Packages
         run: mvn clean deploy
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -59,4 +75,4 @@ jobs:
           push: true
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:latest
-  #          ${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:${{ github.sha }}
+#            ${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:${{ github.sha }}
