@@ -21,9 +21,11 @@ jobs:
         with:
           java-version: ${{ inputs.java-version }}
           distribution: 'temurin'
+          server-id: github # Automatically adds credentials to ~/.m2/settings.xml
+          cache: 'maven'
 
       - name: Build and Publish
-        run: mvn clean deploy -s $GITHUB_WORKSPACE/settings.xml
+        run: mvn clean deploy
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
