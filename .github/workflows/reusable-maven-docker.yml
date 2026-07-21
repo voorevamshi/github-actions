@@ -16,6 +16,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+    services:
+      mysql:
+        image: ${{ inputs.needs-mysql && 'mysql:8.0' || '' }}
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: testdb
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+
+      # Redis Service Container
+      redis:
+        image: ${{ inputs.needs-redis && 'redis:alpine' || '' }}
+        ports:
+          - 6379:6379
+        options: --health-cmd="redis-cli ping" --health-interval=10s --health-timeout=5s --health-retries=3
+
       - name: Set up JDK ${{ inputs.java-version }}
         uses: actions/setup-java@v4
         with:
