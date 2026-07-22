@@ -4,7 +4,8 @@
 
  - [Questions & Answers Knowledge Base](docs/q&a.md)
  - [YAML property details](docs/YamlPropertyDetails.md)
- - [Maven build, Docker packaging, and deployment to GitHub Packages](docs/buildAndPushToDockerHubflow.md)
+ - [developer commit to Maven build, Docker packaging, and deployment to GitHub Packages](docs/buildAndPushToDockerHubflow.md)
+ - [Two-tier workflow design](docs/twoTierWorkflowDesign.md)
 
 1.  **Workflow Triggers & Branching Strategy**
 2.  **Reusable Workflow Execution Model & Scope**
