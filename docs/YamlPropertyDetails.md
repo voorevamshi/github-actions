@@ -9,7 +9,7 @@ XML
   <repository>
     <id>github</id>
     <name>GitHub Packages</name>
-    <url>https://maven.pkg.github.com/voorevamshi/${project.artifactId}</url>
+    <url>https://maven.pkg.github.com/VamshiOrganization/${project.artifactId}</url>
   </repository>
 </distributionManagement>
 ```
@@ -40,7 +40,7 @@ permissions:
 
 jobs:
   call-shared-workflow:
-    uses: voorevamshi/github-actions/.github/workflows/reusable-maven-docker.yml@main
+    uses: VamshiOrganization/github-actions/.github/workflows/reusable-maven-docker.yml@main
     secrets: inherit
 ```
 ### GitHub Actions Workflow Properties Explained
