@@ -160,4 +160,191 @@
  3.  **Lifecycle:** The database and all generated tables are completely destroyed when the GitHub Actions job finishes running.
  
     
+### 8. Resolving Missing Dependency Version in Spring Boot 4.0
 
+**Q: Why did `mvn package` fail with `'dependencies.dependency.version' for org.springframework.boot:spring-boot-starter-aop:jar is missing` when using Spring Boot 4.0.5?**
+
+**Answer:**
+
+In Spring Boot 4.x, `spring-boot-starter-aop` was renamed to `spring-boot-starter-aspectj`. Because `spring-boot-starter-aop` is no longer part of the Spring Boot 4.0 Bill of Materials (`spring-boot-dependencies`), Maven could not resolve its managed version automatically.
+
+**Fix:**
+
+Replace the dependency artifact in `pom.xml`:
+
+XML
+
+```
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-aspectj</artifactId>
+</dependency>
+
+```
+
+### 9. Bill of Materials (BOM) & Hierarchy Errors in Maven
+
+**Q: What is a Bill of Materials (BOM), what happens if `<dependencyManagement>` is placed inside `<dependencies>`, and is explicit BOM import needed when using `spring-boot-starter-parent`?**
+
+**Answer:**
+
+-   **BOM (Bill of Materials):** A curated `pom.xml` that defines verified, compatible dependency versions (preventing version mismatch errors like `NoSuchMethodError`).
+    
+-   **XML Hierarchy Rule:** `<dependencyManagement>` **must** sit at the root level under `<project>` as a sibling to `<dependencies>`. Placing `<dependencyManagement>` inside `<dependencies>` causes Maven parsing errors, ignoring the imported BOM entirely.
+    
+-   **Parent vs. DependencyManagement:** If your `pom.xml` defines `spring-boot-starter-parent` in its `<parent>` section, you **do not** need a separate `<dependencyManagement>` block to import `spring-boot-dependencies`. The parent POM imports all version rules automatically.
+    
+
+### 10. Docker Build Failure: `JAR file not found in target/`
+
+**Q: Why did Docker fail with `COPY target/*.jar: not found` during the GitHub Actions build, and how do we fix it cleanly across all microservices?**
+
+**Answer:**
+
+-   **Root Cause:** The `docker build` step was executing before Maven compiled the fat JAR, or the hardcoded JAR filename in the `Dockerfile` didn't match the version output from Maven.
+    
+-   **Fix:**
+    
+    1.  Ensure `mvn clean deploy` (or `mvn clean package`) runs **before** the `docker/build-push-action` step in your pipeline.
+        
+    2.  Use a generic wildcard copy in your `Dockerfile` so it works for all microservices without updating hardcoded versions:
+        
+
+Dockerfile
+
+```
+FROM eclipse-temurin:21-jdk-jammy  
+COPY target/*.jar app.jar  
+ENTRYPOINT ["java","-jar","/app.jar"]
+
+```
+
+### 11. Role of `<name>` and `<finalName>` in `pom.xml`
+
+**Q: Is the `<name>` tag mandatory in `pom.xml`? How does `<finalName>` help with Docker builds?**
+
+**Answer:**
+
+-   **`<name>`:** Not mandatory. It is purely display metadata for IDEs and reports. If omitted, Maven defaults to using `<artifactId>`.
+    
+-   **`<finalName>`:** Optional, but useful if you want to explicitly control the output filename in `target/` (e.g., `<finalName>${project.artifactId}</finalName>`), producing `spring-order-service.jar` instead of `spring-order-service-0.0.1-SNAPSHOT.jar`.
+    
+
+### 12. Maven Lifecycle & `mvn clean deploy`
+
+**Q: Does running `mvn clean deploy` run tests and package the JAR, or do we need `mvn clean package deploy`?**
+
+**Answer:**
+
+You only need `mvn clean deploy`. Maven's build phases are strictly sequential:
+
+$$\text{compile} \longrightarrow \text{test} \longrightarrow \mathbf{\text{package}} \longrightarrow \text{install} \longrightarrow \mathbf{\text{deploy}}$$
+
+Invoking `deploy` automatically runs `test` and `package` beforehand. Specifying both `package` and `deploy` causes Maven to execute packaging logic twice unnecessarily.
+
+### 13. Fix 403 Forbidden Errors from Maven Central in GitHub Actions
+
+**Q: Why did `mvn clean deploy` throw `403 Forbidden` when attempting to fetch `spring-boot-starter-parent` from Maven Central?**
+
+**Answer:**
+
+-   **Root Cause:** Using `actions/setup-java@v4` with `server-id: github` configures `~/.m2/settings.xml` with GitHub authentication tokens. When Maven attempted to download public artifacts from Maven Central, it sent those GitHub authorization headers, which Maven Central rejected with `403 Forbidden`.
+    
+-   **Fix:** Add `-DsuppressCentralAuth=true` to the Maven command or explicitly map the central repository in `pom.xml`:
+    
+
+Bash
+
+```
+mvn clean deploy -DsuppressCentralAuth=true
+
+```
+
+### 14. Fixing GitHub Packages Package Deployment Lookups
+
+**Q: Why did `maven-deploy-plugin` fail with `Could not find artifact in github ([https://maven.pkg.github.com/VamshiOrganization/product-service](https://maven.pkg.github.com/VamshiOrganization/product-service))`?**
+
+**Answer:**
+
+-   **Root Causes:**
+    
+    1.  Missing workflow write permissions for packages (`packages: write`).
+        
+    2.  Appending `${project.artifactId}` directly to the GitHub Packages repository URL in `<distributionManagement>` can cause resolution lookup failures for newly created repositories.
+        
+-   **Fix:** Set permissions in the workflow and point `<distributionManagement>` directly to the Organization endpoint:
+    
+
+YAML
+
+```
+# In .github/workflows/pipeline.yml
+permissions:
+  contents: read
+  packages: write
+
+```
+
+XML
+
+```
+<!-- In pom.xml -->
+<distributionManagement>
+    <repository>
+        <id>github</id>
+        <name>GitHub Packages</name>
+        <url>https://maven.pkg.github.com/VamshiOrganization</url>
+    </repository>
+</distributionManagement>
+
+```
+
+### 15. Timestamped Naming for `-SNAPSHOT` Artifacts in GitHub Packages
+
+**Q: Why does GitHub Packages rename `product-service-1.0.0-SNAPSHOT.jar` to `product-service-1.0.0-20260722.181312-1.jar` upon upload?**
+
+**Answer:**
+
+-   **Standard Maven SNAPSHOT Behavior:** Local builds in `target/` overwrite files using `-SNAPSHOT.jar`. Remote registries (like GitHub Packages) append a UTC timestamp and build counter to maintain immutable snapshot history and allow builds to be tracked.
+    
+-   **Resolution:** You still declare `<version>1.0.0-SNAPSHOT</version>` in dependent projects—Maven uses `maven-metadata.xml` behind the scenes to fetch the latest timestamped artifact automatically.
+
+
+### 16. Maven Local Build (`target/`) vs. GitHub Packages Deployment
+
+how **Maven Build (Local Packaging)** and **GitHub Packages (Remote Registry Deployment)** interact, focusing on why snapshots behave differently in each environment and how they stay synchronized.
+
+**Q: How does Maven handle SNAPSHOT JAR creation locally in `target/` versus remotely in GitHub Packages during `mvn clean deploy`?**
+
+**Answer:**
+
+When you run `mvn clean deploy`, Maven executes two distinct phases sequentially for the target artifact:
+
+```
+[Local Phase]                               [Remote Phase]
+mvn package                                 mvn deploy
+  │                                           │
+  ▼                                           ▼
+Generates:                                  Uploads to GitHub Packages as:
+target/product-service-1.0.0-SNAPSHOT.jar   product-service-1.0.0-20260722.181312-1.jar
+(Single, local overwriting file)            (Unique, timestamped immutable build)
+```
+
+
+### Local Build (`target/`) vs GitHub Packages (Remote Registry)
+
+| **Aspect** | **Local Build (`target/`)** | **GitHub Packages (Remote Registry)** |
+|---|---|---|
+| **Filename Format** | `product-service-1.0.0-SNAPSHOT.jar` | `product-service-1.0.0-YYYYMMDD.HHMMSS-B.jar` |
+| **Storage Behavior** | **Mutable / Overwrites:** Every `mvn package` replaces the previous JAR in the `target/` directory. | **Immutable / Appends:** Every `mvn deploy` publishes a new timestamped artifact and updates `maven-metadata.xml`. |
+| **Primary Consumer** | **Docker Build Context:** The `Dockerfile` copies the JAR directly from the local `target/` directory during `docker build`. | **Downstream Microservices:** Other applications retrieve the published JAR as a Maven dependency from **GitHub Packages**. |
+
+#### Why the Distinction Matters:
+
+1.  **For Docker Containerization (`COPY target/*.jar app.jar`):**
+    
+    Docker context runs on the GitHub Runner _locally_ before container creation. It copies `target/product-service-1.0.0-SNAPSHOT.jar` directly from the local workspace **before** or **after** `deploy` runs. The timestamped remote URL on GitHub Packages has zero impact on the Docker build.
+    
+2.  **For Dependency Resolution (`maven-metadata.xml`):**
+    
+    When another microservice lists your library as `<version>1.0.0-SNAPSHOT</version>`, Maven queries the `maven-metadata.xml` file hosted inside `[https://maven.pkg.github.com/VamshiOrganization](https://maven.pkg.github.com/VamshiOrganization)`. It reads the latest timestamp (`20260722.181312-1`) and pulls that exact file transparently.
