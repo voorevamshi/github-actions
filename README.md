@@ -2,7 +2,8 @@
 
 ### 📋 Index of Topics
 
- [Questions & Answers Knowledge Base] (docs/q&a.md)
+ - [Questions & Answers Knowledge Base](docs/q&a.md)
+ - [YAML property details](docs/YamlPropertyDetails.md)
 
 1.  **Workflow Triggers & Branching Strategy**
 2.  **Reusable Workflow Execution Model & Scope**
